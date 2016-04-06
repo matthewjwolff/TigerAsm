@@ -1,5 +1,9 @@
 *.class
 
+!Symbol/Binder.class
+!ErrorMsg/*.class
+!Parse/*.class
+
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
