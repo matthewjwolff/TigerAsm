@@ -104,11 +104,11 @@ public class Translate {
   }
 
   public Exp NilExp() {
-    return Error();
+    return new Nx(null);
   }
 
   public Exp IntExp(int value) {
-    return Error();
+    return new Ex(CONST(value));
   }
 
   private java.util.Hashtable strings = new java.util.Hashtable();
@@ -129,7 +129,8 @@ public class Translate {
     return frame.externalCall(f.toString(), ExpList(args));
   }
   private Tree.Exp CallExp(Level f, ExpList args, Level from) {
-    throw new Error("Translate.CallExp unimplemented");
+      //add frame pointer to args list
+      return CALL(NAME(f.name()), ExpList(null, ExpList(args)));
   }
 
   public Exp FunExp(Symbol f, ExpList args, Level from) {
@@ -146,15 +147,37 @@ public class Translate {
   }
 
   public Exp OpExp(int op, Exp left, Exp right) {
-    return Error();
+    return new Ex(BINOP(op, left.unEx(), right.unEx()));
   }
 
   public Exp StrOpExp(int op, Exp left, Exp right) {
-    return Error();
+      //make separate instruction to compare the strings
+      return new RelCx(op, left.unEx(), right.unEx());
   }
 
   public Exp RecordExp(ExpList init) {
-    return Error();
+    //using malloc
+    //i'm a c programmer
+    int numArgs = 0;
+    ExpList iterator = init;
+    while(init!=null) {
+        numArgs++;
+        iterator = iterator.tail;
+    }
+    Temp headPointer = new Temp();
+    //look dr. whaley I used malloc am I in the cool kids club yet?
+    Tree.Stm creation = MOVE(TEMP(headPointer), frame.externalCall("malloc", ExpList(CONST(numArgs*4),null)));
+    Tree.Stm initialization = initArray(headPointer, init, 0);
+    return new Ex(ESEQ(SEQ(creation, initialization), TEMP(headPointer)));
+  }
+  
+  private Tree.Stm initArray(Temp pointer, ExpList init, int offset) {
+      if(init==null)
+          return null;
+      //copy the initial value into the memory location given by pointer+offset
+      Tree.Stm copyOp = MOVE(MEM(BINOP(Tree.BINOP.PLUS, TEMP(pointer), CONST(offset))), init.head.unEx());
+      //do that instruction, followed by the initialization of the next record value at offset += 4
+      return SEQ(copyOp, initArray(pointer, init.tail, offset+4));
   }
 
   public Exp SeqExp(ExpList e) {
@@ -162,11 +185,11 @@ public class Translate {
   }
 
   public Exp AssignExp(Exp lhs, Exp rhs) {
-    return Error();
+    return new Nx(MOVE(lhs.unEx(),rhs.unEx()));
   }
 
   public Exp IfExp(Exp cc, Exp aa, Exp bb) {
-    return Error();
+    return new IfThenElseExp(cc,aa,bb);
   }
 
   public Exp WhileExp(Exp test, Exp body, Label done) {
@@ -178,15 +201,30 @@ public class Translate {
   }
 
   public Exp BreakExp(Label done) {
-    return Error();
+    return new Nx(JUMP(done));
   }
 
   public Exp LetExp(ExpList lets, Exp body) {
-    return Error();
+    //recurse through the lets
+    Tree.Stm letStatements = stmLets(lets);
+    Tree.Exp travBody = body.unEx();
+    if(letStatements == null)
+        return new Ex(travBody);
+    return new Ex(ESEQ(letStatements, travBody));
+  }
+  
+  private Tree.Stm stmLets(ExpList lets) {
+      if(lets == null) 
+          return null;
+      else return SEQ(lets.head.unNx(), stmLets(lets.tail));
   }
 
   public Exp ArrayExp(Exp size, Exp init) {
-    return Error();
+    //get memory size
+      Tree.Exp memSize = size.unEx();
+      //call external function to instantiate array
+      //almost a C programmer
+      return new Ex(frame.externalCall("initArray", ExpList(memSize, ExpList(init.unEx()))));
   }
 
   public Exp VarDec(Access a, Exp init) {
