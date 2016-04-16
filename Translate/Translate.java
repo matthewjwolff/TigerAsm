@@ -345,7 +345,10 @@ public class Translate {
 
   public Exp VarDec(Access a, Exp init) {
     //calculate variable's initialization
-    Tree.Exp initVal = init.unEx();
+    Tree.Exp initVal;
+    if(init ==null)
+        initVal = NilExp().unEx();
+    else initVal = init.unEx();
     //put it in a place
     return new Nx(MOVE(a.acc.exp(TEMP(a.home.frame.FP())), initVal));
   }
