@@ -223,6 +223,7 @@ public class Translate {
   public Exp RecordExp(ExpList init) {
     //using malloc
     //i'm a c programmer
+    //nevermind there's an asm for that
     int numArgs = 0;
     ExpList iterator = init;
     while(iterator!=null) {
@@ -233,23 +234,23 @@ public class Translate {
     //look dr. whaley I used malloc am I in the cool kids club yet?
     //nevermind I was going to be cool and use malloc but the reference implementation doesn't do that soo....
     Tree.Stm creation = MOVE(TEMP(headPointer), frame.externalCall("allocRecord", ExpList(CONST(numArgs),null)));
-    Tree.Stm initialization = initArray(headPointer, init, 0);
+    Tree.Stm initialization = initRecord(headPointer, init, 0);
     return new Ex(ESEQ(SEQ(creation, initialization), TEMP(headPointer)));
   }
   
-  private Tree.Stm initArray(Temp pointer, ExpList init, int offset) {
+  private Tree.Stm initRecord(Temp pointer, ExpList init, int offset) {
       if(init==null)
           return null;
       //copy the initial value into the memory location given by pointer+offset
       Tree.Stm copyOp = MOVE(MEM(BINOP(Tree.BINOP.PLUS, TEMP(pointer), CONST(offset))), init.head.unEx());
       //do that instruction, followed by the initialization of the next record value at offset += 4
-      return SEQ(copyOp, initArray(pointer, init.tail, offset+4));
+      return SEQ(copyOp, initRecord(pointer, init.tail, offset+4));
   }
 
   public Exp SeqExp(ExpList e) {
-    //test
+    //never return null you dummy
       if(e==null)
-        return null;
+        return NilExp();
       if(e.head == null)
         return NilExp();
     if(e.tail==null)
@@ -269,7 +270,10 @@ public class Translate {
           //do things that don't require an else branch
           //CJUMP, LABEL (if true) AA
           //i'm pretty sure that there's no case where if without else happens...
-          return null;
+          Label trueLabel = new Label();
+          Label exitLabel = new Label();
+          Tree.Stm trueBlock = SEQ(LABEL(trueLabel), aa.unNx());
+          return new Nx(SEQ(SEQ(cc.unCx(trueLabel, exitLabel), trueBlock),LABEL(exitLabel)));
       }
   }
 
@@ -346,6 +350,7 @@ public class Translate {
   public Exp VarDec(Access a, Exp init) {
     //calculate variable's initialization
     Tree.Exp initVal;
+    //null check just in case
     if(init ==null)
         initVal = NilExp().unEx();
     else initVal = init.unEx();
