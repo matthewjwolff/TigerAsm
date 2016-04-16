@@ -137,7 +137,7 @@ public class Print {
    else if (e instanceof NAME) prExp((NAME)e, d);
    else if (e instanceof CONST) prExp((CONST)e, d);
    else if (e instanceof CALL) prExp((CALL)e, d);
-   else throw new Error("Print.prExp");
+   else say("ERROR");
   }
 
   public void prStm(Stm s) {prStm(s,0); sayln("");}

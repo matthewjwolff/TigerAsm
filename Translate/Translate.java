@@ -92,19 +92,59 @@ public class Translate {
   }
 
   public Exp SimpleVar(Access access, Level level) {
-    return Error();
+      //get the frame pointer of this frame
+      Tree.Exp fp = TEMP(frame.FP());
+      //find the pointer to the frame in which the variable was defined
+      
+      Level defLevel = level;
+      while(defLevel != access.home) {
+          //uhhhhhhh
+          fp = level.frame.formals.head.exp(fp);
+          defLevel = defLevel.parent;
+      }
+      
+      //location of variable in access
+      Tree.Exp varAddr = access.acc.exp(fp);
+      return new Ex(varAddr);
   }
 
   public Exp FieldVar(Exp record, int index) {
-    return Error();
+    //register for the record
+    //NOTE, keep track of the Temp object, not TEMP (as that is the instruction for (example) %eax)
+    Temp recordReg = new Temp();
+    //memory address to beginning of record stored in register
+    //WRONG
+    Tree.Stm recordLoadInstr = MOVE(TEMP(recordReg), record.unEx());
+    //offset of field we want
+    int offset = index*4; //wordsize 
+    //calculate memory address of intended field
+    //i'm an assembly programmer (but in x86 this'd be a lea)
+    Tree.Exp fieldAddr = BINOP(Tree.BINOP.PLUS, TEMP(recordReg), CONST(offset));
+    //Load the address from memory
+    Tree.Exp memLoadInstr = MEM(fieldAddr);
+    //Return the ESEQ for first loading the record and then loading the field, returning the field.
+    return new Ex(ESEQ(recordLoadInstr, memLoadInstr));
   }
 
   public Exp SubscriptVar(Exp array, Exp index) {
-    return Error();
+    //similar thing for arrays
+    //get a register for the array pointer
+    Temp arrReg = new Temp();
+    //load the array pointer into the register
+    Tree.Stm arrLoadInstr = MOVE(TEMP(arrReg), array.unEx());
+    //calculate offset
+    Tree.Exp elementOffs = BINOP(Tree.BINOP.MUL, index.unEx(), CONST(4));
+    //get pointer to element
+    Tree.Exp elementAddr = BINOP(Tree.BINOP.PLUS, TEMP(arrReg), elementOffs);
+    //dereference
+    Tree.Exp memLoadInstr = MEM(elementAddr);
+    //Return the ESEQ for first loading the array pointer and then loading the element  
+    return new Ex(ESEQ(arrLoadInstr, memLoadInstr));
   }
 
+  //The nil expression is represented as a pointer to 0
   public Exp NilExp() {
-    return new Nx(null);
+    return new Ex(CONST(0));
   }
 
   public Exp IntExp(int value) {
@@ -129,8 +169,21 @@ public class Translate {
     return frame.externalCall(f.toString(), ExpList(args));
   }
   private Tree.Exp CallExp(Level f, ExpList args, Level from) {
-      //add frame pointer to args list
-      return CALL(NAME(f.name()), ExpList(null, ExpList(args)));
+      //To call a function, we must pass in the static link as the first parameter.
+      //first, get the frame pointer for the function call scope
+      Label functionName = f.name();
+      Tree.Exp fp = TEMP(from.frame.FP());
+      //Then, using that frame pointer, go up until you find the level that this function is in
+      Level defLevel = from;
+      while(defLevel != f.parent) {
+          //Keep making pointers to the upper level relative to the previous level
+          //DUDE THIS MAKES NO SENSE WHY DOES THIS GO FIRST
+          //(maybe we have to do at least one iteration..?)
+          defLevel = defLevel.parent;
+          fp = defLevel.frame.formals.head.exp(fp);
+      }
+      Tree.Exp retval =  CALL(NAME(f.name()), ExpList(fp,ExpList(args)));
+      return retval;
   }
 
   public Exp FunExp(Symbol f, ExpList args, Level from) {
@@ -147,7 +200,19 @@ public class Translate {
   }
 
   public Exp OpExp(int op, Exp left, Exp right) {
-    return new Ex(BINOP(op, left.unEx(), right.unEx()));
+      Tree.Exp leftExp = left.unEx();
+      Tree.Exp rightExp = right.unEx();
+      //may need to be changed, testing for IF
+      switch(op) {
+          case 0:
+          case 1:
+          case 2:
+          case 3:
+              return new Ex(BINOP(op, left.unEx(), right.unEx()));
+          default:
+              //this is probably bad........
+              return new RelCx(op-4, left.unEx(), right.unEx());
+      }
   }
 
   public Exp StrOpExp(int op, Exp left, Exp right) {
@@ -160,13 +225,14 @@ public class Translate {
     //i'm a c programmer
     int numArgs = 0;
     ExpList iterator = init;
-    while(init!=null) {
+    while(iterator!=null) {
         numArgs++;
         iterator = iterator.tail;
     }
     Temp headPointer = new Temp();
     //look dr. whaley I used malloc am I in the cool kids club yet?
-    Tree.Stm creation = MOVE(TEMP(headPointer), frame.externalCall("malloc", ExpList(CONST(numArgs*4),null)));
+    //nevermind I was going to be cool and use malloc but the reference implementation doesn't do that soo....
+    Tree.Stm creation = MOVE(TEMP(headPointer), frame.externalCall("allocRecord", ExpList(CONST(numArgs),null)));
     Tree.Stm initialization = initArray(headPointer, init, 0);
     return new Ex(ESEQ(SEQ(creation, initialization), TEMP(headPointer)));
   }
@@ -181,7 +247,9 @@ public class Translate {
   }
 
   public Exp SeqExp(ExpList e) {
-    return Error();
+    if(e.tail==null)
+        return new Ex(e.head.unEx());
+    else return new Ex(ESEQ(e.head.unNx(), SeqExp(e.tail).unEx()));
   }
 
   public Exp AssignExp(Exp lhs, Exp rhs) {
@@ -189,11 +257,33 @@ public class Translate {
   }
 
   public Exp IfExp(Exp cc, Exp aa, Exp bb) {
-    return new IfThenElseExp(cc,aa,bb);
+      //test, then, else
+      if(bb!=null)
+        return new IfThenElseExp(cc,aa,bb);
+      else {
+          //do things that don't require an else branch
+          //CJUMP, LABEL (if true) AA
+          //i'm pretty sure that there's no case where if without else happens...
+          return null;
+      }
   }
 
   public Exp WhileExp(Exp test, Exp body, Label done) {
-    return Error();
+    //create label for the test
+    Label testLabel = new Label();
+    Label fallthroughLabel = new Label();
+    Tree.Stm prologue = SEQ(LABEL(testLabel), test.unCx(fallthroughLabel, done));
+    Tree.Stm bodyInstr = SEQ(LABEL(fallthroughLabel),body.unNx());
+    Tree.Stm epilogue = JUMP(testLabel);
+    Tree.Stm full = SEQ(prologue, SEQ(bodyInstr, epilogue));
+    /**
+     * test:
+     *    if not test goto done
+     *    BODY
+     *    goto test
+     * done:
+     */
+    return new Nx(full);
   }
 
   public Exp ForExp(Access i, Exp lo, Exp hi, Exp body, Label done) {
@@ -208,8 +298,10 @@ public class Translate {
     //recurse through the lets
     Tree.Stm letStatements = stmLets(lets);
     Tree.Exp travBody = body.unEx();
+    //TODO: still need to figure out better version of this
+    Tree.Stm bodyNx = body.unNx();
     if(letStatements == null)
-        return new Ex(travBody);
+        return new Nx(bodyNx);
     return new Ex(ESEQ(letStatements, travBody));
   }
   
@@ -228,7 +320,10 @@ public class Translate {
   }
 
   public Exp VarDec(Access a, Exp init) {
-    return Error();
+    //calculate variable's initialization
+    Tree.Exp initVal = init.unEx();
+    //put it in a place
+    return new Nx(MOVE(a.acc.exp(TEMP(a.home.frame.FP())), initVal));
   }
 
   public Exp TypeDec() {
