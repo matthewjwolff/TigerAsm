@@ -335,7 +335,7 @@ public class Translate {
     }
     //TODO: Fix this
     if(letStatements == null)
-        return new Nx(bodyNx);
+        return new Ex(body.unEx());
     return new Ex(ESEQ(letStatements, travBody));
   }
   
