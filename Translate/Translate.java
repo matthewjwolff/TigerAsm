@@ -328,6 +328,12 @@ public class Translate {
     Tree.Exp travBody = body.unEx();
     //TODO: still need to figure out better version of this
     Tree.Stm bodyNx = body.unNx();
+    if(travBody == null) {
+        //The body of this let expression doesn't produce any value. 
+        //So just do the lets followed by the Nx body
+        return new Nx(SEQ(letStatements, bodyNx));
+    }
+    //TODO: Fix this
     if(letStatements == null)
         return new Nx(bodyNx);
     return new Ex(ESEQ(letStatements, travBody));
