@@ -113,8 +113,13 @@ public class Translate {
     //NOTE, keep track of the Temp object, not TEMP (as that is the instruction for (example) %eax)
     Temp recordReg = new Temp();
     //memory address to beginning of record stored in register
-    //WRONG
+    //WRONG (maybe not?)
     Tree.Stm recordLoadInstr = MOVE(TEMP(recordReg), record.unEx());
+    //error handling
+    Label badPtr = new Label("_BADPTR");
+    Label ok = new Label();
+    Tree.Stm nullCheck = SEQ(CJUMP(Tree.CJUMP.EQ, TEMP(recordReg), CONST(0), badPtr, ok), LABEL(ok));
+    Tree.Stm moveAndCheck = SEQ(recordLoadInstr, nullCheck);
     //offset of field we want
     int offset = index*4; //wordsize 
     //calculate memory address of intended field
@@ -123,23 +128,39 @@ public class Translate {
     //Load the address from memory
     Tree.Exp memLoadInstr = MEM(fieldAddr);
     //Return the ESEQ for first loading the record and then loading the field, returning the field.
-    return new Ex(ESEQ(recordLoadInstr, memLoadInstr));
+    return new Ex(ESEQ(moveAndCheck, memLoadInstr));
   }
 
   public Exp SubscriptVar(Exp array, Exp index) {
+    //SIZE OF ARRAY IS LOCATED ONE WORD BEFORE ARRAY POINTER
     //similar thing for arrays
     //get a register for the array pointer
     Temp arrReg = new Temp();
+    Temp indexReg = new Temp();
     //load the array pointer into the register
     Tree.Stm arrLoadInstr = MOVE(TEMP(arrReg), array.unEx());
+    Tree.Stm loadIndex = MOVE(TEMP(indexReg), index.unEx());
+    Label badSub = new Label("_BADSUB");
+    Label chkSize = new Label();
+    Label ok = new Label();
+    Tree.Stm indexUnderflow = CJUMP(Tree.CJUMP.LT, TEMP(indexReg), CONST(0), badSub, chkSize);
+    Tree.Stm indexOverflow = SEQ(CJUMP(Tree.CJUMP.GT, TEMP(indexReg), MEM(BINOP(Tree.BINOP.PLUS, TEMP(arrReg), CONST(-4))), badSub, ok),LABEL(ok));
+    
+    //going backwards and assembling statements
+    Tree.Stm chkOverflow = SEQ(LABEL(chkSize), indexOverflow);
+    Tree.Stm errorChecks = SEQ(indexUnderflow, chkOverflow);
+    Tree.Stm indxLoad = SEQ(loadIndex, errorChecks);
+    
+    Tree.Stm arrPrologue = SEQ(arrLoadInstr, indxLoad);
+        
     //calculate offset
-    Tree.Exp elementOffs = BINOP(Tree.BINOP.MUL, index.unEx(), CONST(4));
+    Tree.Exp elementOffs = BINOP(Tree.BINOP.MUL, TEMP(indexReg), CONST(4));
     //get pointer to element
     Tree.Exp elementAddr = BINOP(Tree.BINOP.PLUS, TEMP(arrReg), elementOffs);
     //dereference
     Tree.Exp memLoadInstr = MEM(elementAddr);
     //Return the ESEQ for first loading the array pointer and then loading the element  
-    return new Ex(ESEQ(arrLoadInstr, memLoadInstr));
+    return new Ex(ESEQ(arrPrologue, memLoadInstr));
   }
 
   //The nil expression is represented as a pointer to 0
@@ -310,6 +331,7 @@ public class Translate {
 
   public Exp ForExp(Access i, Exp lo, Exp hi, Exp body, Label done) {
      
+      //TODO: use i somehow.....
       
      Tree.Exp loEx = lo.unEx();
       Tree.Exp hiEx = hi.unEx();
