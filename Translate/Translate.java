@@ -204,14 +204,27 @@ public class Translate {
       Tree.Exp rightExp = right.unEx();
       //may need to be changed, testing for IF
       switch(op) {
-          case 0:
-          case 1:
-          case 2:
-          case 3:
+          //Absyn.OpExp and CJUMP conditionals are not identical...
+          case Absyn.OpExp.PLUS:
+          case Absyn.OpExp.MINUS:
+          case Absyn.OpExp.MUL:
+          case Absyn.OpExp.DIV:
               return new Ex(BINOP(op, left.unEx(), right.unEx()));
+          case Absyn.OpExp.EQ:
+              return new RelCx(CJUMP.EQ, left.unEx(), right.unEx());
+          case Absyn.OpExp.NE:
+              return new RelCx(CJUMP.NE, left.unEx(), right.unEx());
+          case Absyn.OpExp.GE:
+              return new RelCx(CJUMP.GE, left.unEx(), right.unEx());
+          case Absyn.OpExp.GT:
+              return new RelCx(CJUMP.GT, left.unEx(), right.unEx());
+          case Absyn.OpExp.LE:
+              return new RelCx(CJUMP.LE, left.unEx(), right.unEx());
+          case Absyn.OpExp.LT:
+              return new RelCx(CJUMP.LT, left.unEx(), right.unEx());
           default:
-              //this is probably bad........
-              return new RelCx(op-4, left.unEx(), right.unEx());
+               System.err.println("unknown operator "+op);
+               return Error();
       }
   }
 
