@@ -247,6 +247,11 @@ public class Translate {
   }
 
   public Exp SeqExp(ExpList e) {
+    //test
+      if(e==null)
+        return null;
+      if(e.head == null)
+        return NilExp();
     if(e.tail==null)
         return new Ex(e.head.unEx());
     else return new Ex(ESEQ(e.head.unNx(), SeqExp(e.tail).unEx()));
@@ -287,7 +292,26 @@ public class Translate {
   }
 
   public Exp ForExp(Access i, Exp lo, Exp hi, Exp body, Label done) {
-    return Error();
+     
+      
+     Tree.Exp loEx = lo.unEx();
+      Tree.Exp hiEx = hi.unEx();
+      Temp loReg = new Temp();
+      Temp hiReg = new Temp();
+      Tree.Stm loadLo = MOVE(TEMP(loReg), loEx);
+      Tree.Stm loadHi = MOVE(TEMP(hiReg), hiEx);
+      Label bodyLabel = new Label();
+      Label exitLabel = new Label();
+      Label incrementLabel = new Label();
+      Tree.Stm incExp = SEQ(SEQ(LABEL(incrementLabel), MOVE(TEMP(loReg), BINOP(Tree.BINOP.PLUS, TEMP(loReg), CONST(1)))),JUMP(bodyLabel));
+      Tree.Stm bodyNx = body.unNx();
+      Tree.Exp bodyEx = body.unEx();
+      Tree.Stm bodyBlock = SEQ(SEQ(LABEL(bodyLabel),body.unNx()),new Tree.CJUMP(Tree.CJUMP.LT, TEMP(loReg), TEMP(hiReg), incrementLabel, exitLabel));
+      Tree.Stm epilogue = SEQ(bodyBlock, incExp);
+      Tree.Stm loads = SEQ(loadLo, loadHi);
+      Tree.Stm prologue = SEQ(loads, new Tree.CJUMP(Tree.CJUMP.LE, TEMP(loReg), TEMP(hiReg), bodyLabel, exitLabel));
+      Tree.Stm forBlock = SEQ(prologue, epilogue);
+      return new Nx(SEQ(forBlock, LABEL(exitLabel)));
   }
 
   public Exp BreakExp(Label done) {
