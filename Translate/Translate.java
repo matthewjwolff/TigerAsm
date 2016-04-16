@@ -165,7 +165,7 @@ public class Translate {
 
   //The nil expression is represented as a pointer to 0
   public Exp NilExp() {
-    return new Ex(CONST(0));
+    return new Nx(null);
   }
 
   public Exp IntExp(int value) {
@@ -288,8 +288,8 @@ public class Translate {
       if(e.head == null)
         return NilExp();
     if(e.tail==null)
-        return new Ex(e.head.unEx());
-    else return new Ex(ESEQ(e.head.unNx(), SeqExp(e.tail).unEx()));
+        return new Nx(e.head.unNx());
+    else return new Nx(SEQ(e.head.unNx(), SeqExp(e.tail).unNx()));
   }
 
   public Exp AssignExp(Exp lhs, Exp rhs) {
