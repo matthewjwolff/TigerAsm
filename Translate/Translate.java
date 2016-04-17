@@ -7,6 +7,10 @@ import Temp.Label;
 
 public class Translate {
   public Frame.Frame frame;
+  
+  //really hacky way of testing for nilexp's
+  private final Ex NIL = new Ex(CONST(0));
+  
   public Translate(Frame.Frame f) {
     frame = f;
   }
@@ -165,7 +169,7 @@ public class Translate {
 
   //The nil expression is represented as a pointer to 0
   public Exp NilExp() {
-    return new Ex(CONST(0));
+    return NIL;
   }
 
   public Exp IntExp(int value) {
@@ -289,6 +293,8 @@ public class Translate {
         return NilExp();
     if(e.tail==null)
         return new Ex(e.head.unEx());
+    if(e.tail.head == NIL)
+        return e.head;
     else return new Ex(ESEQ(e.head.unNx(), SeqExp(e.tail).unEx()));
   }
 
