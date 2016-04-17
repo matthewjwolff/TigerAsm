@@ -54,7 +54,7 @@ class IfThenElseExp extends Exp {
 
   @Override
   Tree.Stm unNx() {
-    // You must implement this function
-    return null;
+    //just do the if/then/else statement. discard result.
+    return new Tree.SEQ(cond.unCx(t, f), new Tree.SEQ(new Tree.LABEL(t), new Tree.SEQ(a.unNx(), new Tree.SEQ(new Tree.JUMP(join), new Tree.SEQ(new Tree.LABEL(f), new Tree.SEQ(b.unNx(), new Tree.LABEL(join)))))));
   }
 }

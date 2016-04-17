@@ -335,9 +335,9 @@ public class Translate {
       
      Tree.Exp loEx = lo.unEx();
       Tree.Exp hiEx = hi.unEx();
-      Temp loReg = new Temp();
+      Temp loReg = i.home.frame.FP();
       Temp hiReg = new Temp();
-      Tree.Stm loadLo = MOVE(TEMP(loReg), loEx);
+      Tree.Stm loadLo = MOVE(i.acc.exp(TEMP(loReg)), loEx);
       Tree.Stm loadHi = MOVE(TEMP(hiReg), hiEx);
       Label bodyLabel = new Label();
       Label exitLabel = new Label();
@@ -348,7 +348,7 @@ public class Translate {
       Tree.Stm bodyBlock = SEQ(SEQ(LABEL(bodyLabel),body.unNx()),new Tree.CJUMP(Tree.CJUMP.LT, TEMP(loReg), TEMP(hiReg), incrementLabel, exitLabel));
       Tree.Stm epilogue = SEQ(bodyBlock, incExp);
       Tree.Stm loads = SEQ(loadLo, loadHi);
-      Tree.Stm prologue = SEQ(loads, new Tree.CJUMP(Tree.CJUMP.LE, TEMP(loReg), TEMP(hiReg), bodyLabel, exitLabel));
+      Tree.Stm prologue = SEQ(loads, new Tree.CJUMP(Tree.CJUMP.LE, i.acc.exp(TEMP(loReg)), TEMP(hiReg), bodyLabel, exitLabel));
       Tree.Stm forBlock = SEQ(prologue, epilogue);
       return new Nx(SEQ(forBlock, LABEL(exitLabel)));
   }
